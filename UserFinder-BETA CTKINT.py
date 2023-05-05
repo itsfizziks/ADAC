@@ -27,7 +27,7 @@ class MainApplication(CTk.CTkFrame):
     def open_new_window(self):
         menu_window = CTk.CTkToplevel(self.master)
         new_app = MenuWindowApplication(menu_window)
-        self.master.withdraw()
+        #self.master.withdraw()
 
 
 class MenuWindowApplication(CTk.CTkFrame):
@@ -164,7 +164,7 @@ class MenuWindowApplication(CTk.CTkFrame):
             self.textbox.insert("0.0" , "Please enter a username for a simple lookup")
         else :
             ps_command = 'Get-ADUser -Identity "{}" -Properties MemberOf | Select-Object -ExpandProperty MemberOf | Get-ADGroup |Select-Object Name | Sort-Object Name'.format(self.username_getter.get())
-            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command], creationflags=subprocess.CREATE_NO_WINDOW)
             rez = (ps_output.decode("utf-8"))
             self.textbox.delete('1.0', 'end')
             self.textbox.insert("0.0", "Current user selected : " + inserted_input + "\n\n" + "All member of group : " + rez)
@@ -190,7 +190,7 @@ class MenuWindowApplication(CTk.CTkFrame):
             ps_script = f'''$groups_user_1 = Get-ADUser {inserted_input_from} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }}; $groups_user_2 = Get-ADUser {inserted_input_to} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }}; Compare-Object $groups_user_1 $groups_user_2 | Where-Object {{ $_.SideIndicator -eq '=>' }} | Select-Object -ExpandProperty InputObject'''
             #running
             try:
-                ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_script])
+                ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_script], creationflags=subprocess.CREATE_NO_WINDOW)
                 rez = (ps_output.decode("utf-8"))
                 self.textbox.delete('1.0', 'end')
                 self.textbox.insert("0.0", inserted_input_to + " is missing all of these groups from " + inserted_input_from  + "\n\n" + rez)
@@ -217,7 +217,7 @@ class MenuWindowApplication(CTk.CTkFrame):
             self.textbox.insert("0.0" , "Please specify a user to get the password info")
         else:
             ps_command = 'Get-ADUser -identity "{}" -properties PasswordLastSet, PasswordExpired, PasswordNeverExpires | ft Name, PasswordLastSet, PasswordExpired, PasswordNeverExpires'.format(inserted_input_pass)
-            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command], creationflags=subprocess.CREATE_NO_WINDOW)
 
             #Print the output
             rez = (ps_output.decode("utf-8"))
@@ -244,14 +244,14 @@ class MenuWindowApplication(CTk.CTkFrame):
 
         if not inserted_input_first_name and inserted_input_last_name:
             ps_command = 'Get-ADUser -Filter {{Surname -eq "{}"}} | Select-Object -Property SamAccountName'.format(inserted_input_last_name)
-            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command], creationflags=subprocess.CREATE_NO_WINDOW)
             rez = (ps_output.decode("utf-8"))
             self.textbox.delete('1.0', 'end')
             self.textbox.insert("0.0" ,rez)
         
         elif not inserted_input_last_name and inserted_input_first_name:
             ps_command = 'Get-ADUser -Filter {{ GivenName -eq "{}"}} | Select-Object -Property SamAccountName'.format(inserted_input_first_name)
-            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command], creationflags=subprocess.CREATE_NO_WINDOW)
             rez = (ps_output.decode("utf-8"))
             self.textbox.delete('1.0', 'end')
             self.textbox.insert("0.0" ,rez)
@@ -263,7 +263,7 @@ class MenuWindowApplication(CTk.CTkFrame):
         else:
             name = inserted_input_first_name + " " + inserted_input_last_name
             powershell_script = f"$searchString = '*{name}*'; $user = Get-ADUser -Filter {{ DisplayName -like $searchString }} | Select-Object -ExpandProperty SamAccountName; if ($user) {{ Write-Output \"The SamAccountName for {name} is: $user\" }} else {{ Write-Output \"No user found with the name {name}\" }}"
-            process = subprocess.run(["powershell", "-Command", powershell_script], capture_output=True, text=True)
+            process = subprocess.run(["powershell", "-Command", powershell_script], capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
 
             if process.returncode == 0:
                 rez = (process.stdout.strip())
@@ -317,7 +317,7 @@ class MenuWindowApplication(CTk.CTkFrame):
             Write-Output "Full name: $FullName"
             Write-Output "Last computer logged in to: $Computer"
             '''
-            rez = subprocess.run(["powershell", "-Command", ps_script], capture_output=True)
+            rez = subprocess.run(["powershell", "-Command", ps_script], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
             if rez.returncode != 0:
                 listing = (rez.stderr.decode(sys.stdout.encoding))
                 self.textbox.delete('1.0', 'end')
@@ -331,7 +331,6 @@ class MenuWindowApplication(CTk.CTkFrame):
     def change_appearance_mode_event(self, new_appearance_mode: str):
         CTk.set_appearance_mode(new_appearance_mode)   
         
-
 root = CTk.CTk()
 app = MainApplication(root)
 app.pack()
