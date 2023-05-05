@@ -187,15 +187,28 @@ class MenuWindowApplication(CTk.CTkFrame):
             self.textbox.delete('1.0', 'end')
             self.textbox.insert("0.0", "Finding missing groups : \n\n" + "Source : " + inserted_input_from + "  -  " + "Real name here" + "\n\n" + "Clone : " + inserted_input_to + "  -  " + "Real name here")
             #creating pws script
-            ps_script = f'''$groups_user_1 = Get-ADUser {inserted_input_from} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }}; $groups_user_2 = Get-ADUser {inserted_input_to} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }}; Compare-Object $groups_user_1 $groups_user_2 | Where-Object {{ $_.SideIndicator -eq '=>' }} | Select-Object -ExpandProperty InputObject'''
+            # PowerShell command to compare group memberships
+            ps_command = f'''
+            $groups_user_1 = Get-ADUser {inserted_input_to} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }};
+            $groups_user_2 = Get-ADUser {inserted_input_from} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }};
+            $missing_groups = Compare-Object $groups_user_1 $groups_user_2 | Where-Object {{ $_.SideIndicator -eq '=>' }} | Select-Object -ExpandProperty InputObject;
+            $missing_groups
+            '''
             #running
             try:
-                ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_script], creationflags=subprocess.CREATE_NO_WINDOW)
-                rez = (ps_output.decode("utf-8"))
+                #ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command], creationflags=subprocess.CREATE_NO_WINDOW)
+                #ps_output = ps_command.communicate()[0].decode().strip()
+                ps_process = subprocess.Popen(['powershell.exe', '-Command', ps_command], creationflags=subprocess.CREATE_NO_WINDOW, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+                ps_output, ps_error = ps_process.communicate()
+                ps_output = ps_output.decode().strip()
+                #group_list = ps_output.split('\n')
+
+                #rez = (ps_output.decode("utf-8"))
                 self.textbox.delete('1.0', 'end')
-                self.textbox.insert("0.0", inserted_input_to + " is missing all of these groups from " + inserted_input_from  + "\n\n" + rez)
+                self.textbox.insert("0.0", inserted_input_to + " is missing all of these groups from " + inserted_input_from  + "\n\n" + ps_output)
             except subprocess.CalledProcessError as e:
-                print("Error executing PowerShell script:", e.output)
+                self.textbox.delete('1.0', 'end')
+                self.textbox.insert("0.0" , "error try again")
                 sys.exit(1)
         
         ####################### FONC. PASSWORD #######################
@@ -282,50 +295,35 @@ class MenuWindowApplication(CTk.CTkFrame):
             self.textbox.delete('1.0', 'end')
             self.textbox.insert("0.0" , "No user was found in the main entry.")
         else:
-            ps_script = f'''
-            $Username = "{main_input}"
+            # Set execution policy to bypass
+            execution_policy = "-ExecutionPolicy Bypass"
 
-            # Get user object from AD
-            $UserObj = Get-ADUser -Filter {{SamAccountName -eq $Username}} -Properties *
+            # PowerShell script to execute
+            ps_script = f'''powershell.exe -ExecutionPolicy Bypass -Command "$Username = \\"{main_input}\\"; $UserObj = Get-ADUser -Filter {{SamAccountName -eq $Username}} -Properties *; if (!$UserObj) {{ Write-Host \\"User '{main_input}' not found in Active Directory\\"; exit }}; $PasswordLastSet = $UserObj.PasswordLastSet; $PasswordExpired = $UserObj.PasswordExpired; $LogonEvents = Get-WinEvent -FilterHashtable @{{Logname='Security';ID=4624;ProviderName='Microsoft-Windows-Security-Auditing';StartTime=(Get-Date).AddDays(-30);}} -ComputerName $env:COMPUTERNAME -MaxEvents 1000; $LastLogon = $LogonEvents | Where-Object {{$_.Properties[5].Value -eq $Username}} | Select-Object -First 1 | ForEach-Object {{$_.TimeCreated}}; $LastLogon = [DateTime]::Parse($LastLogon); $FullName = $UserObj.Name; $Computer = $LogonEvents | Where-Object {{$_.Properties[5].Value -eq $Username}} | Select-Object -First 1 | ForEach-Object {{$_.Properties[1].Value}}; Write-Output \\"User: $Username\\"; Write-Output \\"Password last set: $PasswordLastSet\\"; Write-Output \\"Password expired: $PasswordExpired\\"; Write-Output \\"Last logon: $LastLogon\\"; Write-Output \\"Full name: $FullName\\"; Write-Output \\"Last computer logged in to: $Computer\\";"'''
 
-            # Check if user exists
-            if (!$UserObj) {{
-                Write-Host "User '$Username' not found in Active Directory"
-                exit
-            }}
 
-            # Get password info
-            $PasswordLastSet = $UserObj.PasswordLastSet
-            $PasswordExpired = $UserObj.PasswordExpired
-
-            # Get logon info
-            $LogonEvents = Get-WinEvent -FilterHashtable @{{Logname='Security';ID=4624;ProviderName='Microsoft-Windows-Security-Auditing';StartTime=(Get-Date).AddDays(-30);}} -ComputerName $env:COMPUTERNAME -MaxEvents 1000
-            $LastLogon = $LogonEvents | Where-Object {{$_.Properties[5].Value -eq $Username}} | Select-Object -First 1 | ForEach-Object {{$_.TimeCreated}}
-            $LastLogon = [DateTime]::Parse($LastLogon)
-
-            # Get full name
-            $FullName = $UserObj.Name
-
-            # Get last computer logged in to
-            $Computer = $LogonEvents | Where-Object {{$_.Properties[5].Value -eq $Username}} | Select-Object -First 1 | ForEach-Object {{$_.Properties[1].Value}}
-
-            # Output results
-            Write-Output "User: $Username"
-            Write-Output "Password last set: $PasswordLastSet"
-            Write-Output "Password expired: $PasswordExpired"
-            Write-Output "Last logon: $LastLogon"
-            Write-Output "Full name: $FullName"
-            Write-Output "Last computer logged in to: $Computer"
-            '''
-            rez = subprocess.run(["powershell", "-Command", ps_script], capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
-            if rez.returncode != 0:
-                listing = (rez.stderr.decode(sys.stdout.encoding))
+            # Use subprocess to execute the PowerShell script with execution policy set to bypass
+            try:
+                output = subprocess.check_output(ps_script, stderr=subprocess.STDOUT, creationflags=subprocess.CREATE_NO_WINDOW, shell=True)
+                rez = output.decode()
                 self.textbox.delete('1.0', 'end')
-                self.textbox.insert("0.0" ,listing)
-            else:
-                listing = (rez.stdout.decode(sys.stdout.encoding))
+                self.textbox.insert("0.0" ,rez)
+            except subprocess.CalledProcessError as e:
+                rez = e.output.decode()
                 self.textbox.delete('1.0', 'end')
-                self.textbox.insert("0.0" ,listing)
+                self.textbox.insert("0.0" ,"shit just hit the fan" + "\n\n" + rez)
+
+
+            # Get the output and error message (if any) of the PowerShell script
+            #output, error = process.communicate()
+
+            # Print the output and error message (if any) of the PowerShell script
+            #fuck = (error.decode())
+                #self.textbox.delete('1.0', 'end')
+            #self.textbox.insert("0.0" ,"shit just hit the fan" + "\n\n" + fuck)
+            #rez = output.decode()
+            #self.textbox.delete('1.0', 'end')
+            ##elf.textbox.insert("0.0" ,rez)
             
 
     def change_appearance_mode_event(self, new_appearance_mode: str):
