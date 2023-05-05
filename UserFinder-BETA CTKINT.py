@@ -54,7 +54,7 @@ class MenuWindowApplication(CTk.CTkFrame):
         self.sidebar_password = CTk.CTkButton(self.sidebar_frame, text="Password Info", command=self.menu_password)
         self.sidebar_password.grid(row=2, column=0, padx=20, pady=10)
         #btn tbd
-        self.sidebar_button_3 = CTk.CTkButton(self.sidebar_frame, command=self.menu_group)
+        self.sidebar_button_3 = CTk.CTkButton(self.sidebar_frame, text="Username Finder",command=self.menu_finder)
         self.sidebar_button_3.grid(row=3, column=0, padx=20, pady=10)
         #customization
         self.appearance_mode_label = CTk.CTkLabel(self.sidebar_frame, text="Appearance Mode:", anchor="w")
@@ -91,6 +91,19 @@ class MenuWindowApplication(CTk.CTkFrame):
         self.username_getter = CTk.CTkEntry(self.option_frame, text_color=("gray10", "#DCE4EE"))
         self.runPSSWRD = CTk.CTkButton(self.option_frame, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="RUN", command=self.running_PSSWRD)
         
+        ####################### OPTION BOX FOR USERFINDER #######################
+
+        #option box already created
+        
+        #options for mirror ID group
+        self.label_first_name = CTk.CTkLabel(self.option_frame, text="First name : ")
+        self.first_name = CTk.CTkEntry(self.option_frame, text_color=("gray10", "#DCE4EE"))
+        
+        self.label_last_name = CTk.CTkLabel(self.option_frame, text="Last name : ")
+        self.last_name = CTk.CTkEntry(self.option_frame, text_color=("gray10", "#DCE4EE"))
+        
+        self.runFIND = CTk.CTkButton(self.option_frame, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="Search", command=self.running_FIND)
+
          ####################### STATIC ASSETS #######################
         
         raw_ascii_art = '''
@@ -110,11 +123,11 @@ class MenuWindowApplication(CTk.CTkFrame):
         self.pack()
         
         # create main entry and button
-        self.entry = CTk.CTkEntry(self, placeholder_text="Username", text_color=("gray10", "#DCE4EE"))
-        self.entry.grid(row=3, column=1, columnspan=2, padx=(20, 0), pady=(20, 20), sticky="nsew")
+        self.main_entry = CTk.CTkEntry(self, placeholder_text="Username", text_color=("gray10", "#DCE4EE"))
+        self.main_entry.grid(row=3, column=1, columnspan=2, padx=(20, 0), pady=(20, 20), sticky="nsew")
 
-        self.main_button_1 = CTk.CTkButton(master=self, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="RUN")
-        self.main_button_1.grid(row=3, column=3, padx=(20, 20), pady=(20, 20), sticky="nsew")
+        self.main_button_RUN = CTk.CTkButton(master=self, fg_color="transparent", border_width=2, text_color=("gray10", "#DCE4EE"), text="Admin Checker" + "\n" + "(may cause lag)", command=self.running_main)
+        self.main_button_RUN.grid(row=3, column=3, padx=(20, 20), pady=(20, 20), sticky="nsew")
 
         ####################### FONC. GROUPS #######################
     
@@ -146,28 +159,44 @@ class MenuWindowApplication(CTk.CTkFrame):
     
     def running_SL(self):
         inserted_input = self.username_getter.get()
-        ps_command = 'Get-ADUser -Identity "{}" -Properties MemberOf | Select-Object -ExpandProperty MemberOf | Get-ADGroup |Select-Object Name | Sort-Object Name'.format(self.username_getter.get())
-        ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
-        rez = (ps_output.decode("utf-8"))
-        self.textbox.delete('1.0', 'end')
-        self.textbox.insert("0.0", "Current user selected : \n\n" + inserted_input + "  -  " + "Real name here")
+        if not inserted_input:
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "Please enter a username for a simple lookup")
+        else :
+            ps_command = 'Get-ADUser -Identity "{}" -Properties MemberOf | Select-Object -ExpandProperty MemberOf | Get-ADGroup |Select-Object Name | Sort-Object Name'.format(self.username_getter.get())
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            rez = (ps_output.decode("utf-8"))
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0", "Current user selected : " + inserted_input + "\n\n" + "All member of group : " + rez)
              
    
     def running_MID(self):
-        inserted_input_from = self.source_from.get()
-        inserted_input_to = self.source_to.get()
-        self.textbox.delete('1.0', 'end')
-        self.textbox.insert("0.0", "Finding missing groups : \n\n" + "Source : " + inserted_input_from + "  -  " + "Real name here" + "\n\n" + "Clone : " + inserted_input_to + "  -  " + "Real name here")
-         #creating pws script
-        ps_script = f'''$groups_user_1 = Get-ADUser {inserted_input_from} -Properties MemberOf | Select-Object -ExpandProperty MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name $groups_user_2 = Get-ADUser {inserted_input_to} -Properties MemberOf | Select-Object -ExpandProperty MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name Compare-Object $groups_user_1 $groups_user_2 | Where-Object {{ $_.SideIndicator -eq '=>' }} | Select-Object -ExpandProperty InputObject'''
-        #running
-        try:
-            output = subprocess.check_output(['powershell', '-command', ps_script], stderr=subprocess.STDOUT, text=True)
-            print("Groups missing in", self.source_from, "to match", self.source_to, ":")
-            print(output)
-        except subprocess.CalledProcessError as e:
-            print("Error executing PowerShell script:", e.output)
-            sys.exit(1)
+        inserted_input_from = format(self.source_from.get())
+        inserted_input_to = format(self.source_to.get())
+        if not inserted_input_from and inserted_input_to :
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "Please specify a source user")
+        elif not inserted_input_to and inserted_input_from :
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "Please specify the clone user")
+        elif not inserted_input_to and not inserted_input_from:
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "Please specify the source user to copy from and a user to paste to")
+        
+        else:
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0", "Finding missing groups : \n\n" + "Source : " + inserted_input_from + "  -  " + "Real name here" + "\n\n" + "Clone : " + inserted_input_to + "  -  " + "Real name here")
+            #creating pws script
+            ps_script = f'''$groups_user_1 = Get-ADUser {inserted_input_from} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }}; $groups_user_2 = Get-ADUser {inserted_input_to} -Properties MemberOf | ForEach-Object {{ $_.MemberOf | Get-ADGroup | Select-Object -ExpandProperty Name }}; Compare-Object $groups_user_1 $groups_user_2 | Where-Object {{ $_.SideIndicator -eq '=>' }} | Select-Object -ExpandProperty InputObject'''
+            #running
+            try:
+                ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_script])
+                rez = (ps_output.decode("utf-8"))
+                self.textbox.delete('1.0', 'end')
+                self.textbox.insert("0.0", inserted_input_to + " is missing all of these groups from " + inserted_input_from  + "\n\n" + rez)
+            except subprocess.CalledProcessError as e:
+                print("Error executing PowerShell script:", e.output)
+                sys.exit(1)
         
         ####################### FONC. PASSWORD #######################
     
@@ -183,16 +212,122 @@ class MenuWindowApplication(CTk.CTkFrame):
     
     def running_PSSWRD(self):
         inserted_input_pass = self.username_getter.get()
-        self.textbox.delete('1.0', 'end')
-        self.textbox.insert("0.0", "Current user selected : \n\n" + inserted_input_pass + "  -  " + "Real name here")
+        if not inserted_input_pass:
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "Please specify a user to get the password info")
+        else:
+            ps_command = 'Get-ADUser -identity "{}" -properties PasswordLastSet, PasswordExpired, PasswordNeverExpires | ft Name, PasswordLastSet, PasswordExpired, PasswordNeverExpires'.format(inserted_input_pass)
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
 
+            #Print the output
+            rez = (ps_output.decode("utf-8"))
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" ,rez)
    
+        ####################### FONC. USER FINDER #######################
+
+    def menu_finder(self):
+        #remove previous if it was the case
+        frame_widgets = self.option_frame.winfo_children()
+        for widget in frame_widgets:
+            widget.grid_remove() 
+        
+        self.label_first_name.grid(row=0, column=0)
+        self.first_name.grid(row=1, column=0, padx=(20, 0), pady=(20, 20), sticky="nsew")
+        self.label_last_name.grid(row=0, column=1)
+        self.last_name.grid(row=1, column=1)
+        self.runFIND.grid(row=2, column=0)
    
-   
-   
-   
-   
+    def running_FIND(self):
+        inserted_input_first_name = self.first_name.get()
+        inserted_input_last_name = self.last_name.get()
+
+        if not inserted_input_first_name and inserted_input_last_name:
+            ps_command = 'Get-ADUser -Filter {{Surname -eq "{}"}} | Select-Object -Property SamAccountName'.format(inserted_input_last_name)
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            rez = (ps_output.decode("utf-8"))
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" ,rez)
+        
+        elif not inserted_input_last_name and inserted_input_first_name:
+            ps_command = 'Get-ADUser -Filter {{ GivenName -eq "{}"}} | Select-Object -Property SamAccountName'.format(inserted_input_first_name)
+            ps_output = subprocess.check_output(["powershell.exe", "-Command", ps_command])
+            rez = (ps_output.decode("utf-8"))
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" ,rez)
+        
+        elif not inserted_input_first_name and not inserted_input_last_name:
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "Please enter either the first or last name of the user you are looking for")
     
+        else:
+            name = inserted_input_first_name + " " + inserted_input_last_name
+            powershell_script = f"$searchString = '*{name}*'; $user = Get-ADUser -Filter {{ DisplayName -like $searchString }} | Select-Object -ExpandProperty SamAccountName; if ($user) {{ Write-Output \"The SamAccountName for {name} is: $user\" }} else {{ Write-Output \"No user found with the name {name}\" }}"
+            process = subprocess.run(["powershell", "-Command", powershell_script], capture_output=True, text=True)
+
+            if process.returncode == 0:
+                rez = (process.stdout.strip())
+                self.textbox.delete('1.0', 'end')
+                self.textbox.insert("0.0" ,rez)
+            else:
+                rez = (f"An error occurred: {process.stderr.strip()}")
+                self.textbox.delete('1.0', 'end')
+                self.textbox.insert("0.0" ,rez)
+        
+        ####################### FONC. MAIN LIST ALL #######################
+
+    def running_main(self):
+        main_input = self.main_entry.get()
+        if not main_input :
+            self.textbox.delete('1.0', 'end')
+            self.textbox.insert("0.0" , "No user was found in the main entry.")
+        else:
+            ps_script = f'''
+            $Username = "{main_input}"
+
+            # Get user object from AD
+            $UserObj = Get-ADUser -Filter {{SamAccountName -eq $Username}} -Properties *
+
+            # Check if user exists
+            if (!$UserObj) {{
+                Write-Host "User '$Username' not found in Active Directory"
+                exit
+            }}
+
+            # Get password info
+            $PasswordLastSet = $UserObj.PasswordLastSet
+            $PasswordExpired = $UserObj.PasswordExpired
+
+            # Get logon info
+            $LogonEvents = Get-WinEvent -FilterHashtable @{{Logname='Security';ID=4624;ProviderName='Microsoft-Windows-Security-Auditing';StartTime=(Get-Date).AddDays(-30);}} -ComputerName $env:COMPUTERNAME -MaxEvents 1000
+            $LastLogon = $LogonEvents | Where-Object {{$_.Properties[5].Value -eq $Username}} | Select-Object -First 1 | ForEach-Object {{$_.TimeCreated}}
+            $LastLogon = [DateTime]::Parse($LastLogon)
+
+            # Get full name
+            $FullName = $UserObj.Name
+
+            # Get last computer logged in to
+            $Computer = $LogonEvents | Where-Object {{$_.Properties[5].Value -eq $Username}} | Select-Object -First 1 | ForEach-Object {{$_.Properties[1].Value}}
+
+            # Output results
+            Write-Output "User: $Username"
+            Write-Output "Password last set: $PasswordLastSet"
+            Write-Output "Password expired: $PasswordExpired"
+            Write-Output "Last logon: $LastLogon"
+            Write-Output "Full name: $FullName"
+            Write-Output "Last computer logged in to: $Computer"
+            '''
+            rez = subprocess.run(["powershell", "-Command", ps_script], capture_output=True)
+            if rez.returncode != 0:
+                listing = (rez.stderr.decode(sys.stdout.encoding))
+                self.textbox.delete('1.0', 'end')
+                self.textbox.insert("0.0" ,listing)
+            else:
+                listing = (rez.stdout.decode(sys.stdout.encoding))
+                self.textbox.delete('1.0', 'end')
+                self.textbox.insert("0.0" ,listing)
+            
+
     def change_appearance_mode_event(self, new_appearance_mode: str):
         CTk.set_appearance_mode(new_appearance_mode)   
         
